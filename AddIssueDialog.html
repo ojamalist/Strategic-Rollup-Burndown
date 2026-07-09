@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      font-size: 13px;
+      color: #1e293b;
+      margin: 0;
+      padding: 16px 20px 20px;
+    }
+    .field { margin-bottom: 12px; }
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 11px;
+      color: #475569;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    label .req { color: #dc2626; }
+    select, input[type="text"], input[type="date"], textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #1e293b;
+    }
+    textarea { resize: vertical; min-height: 44px; }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; min-width: 0; }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .hint { font-size: 11px; color: #94a3b8; }
+    .actions { display: flex; gap: 8px; }
+    button {
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #cancelBtn { background: #f1f5f9; color: #475569; }
+    #submitBtn { background: #16a34a; color: #ffffff; }
+    #submitBtn:disabled { background: #94a3b8; cursor: default; }
+    #status {
+      display: none;
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    #status.error { display: block; background: #fef2f2; color: #991b1b; }
+    #status.success { display: block; background: #dcfce7; color: #14532d; }
+  </style>
+</head>
+<body>
+  <div id="status"></div>
+
+  <div class="row">
+    <div class="field">
+      <label>Tenant <span class="req">*</span></label>
+      <select id="tenant">
+        <option value="">— Select —</option>
+        <? for (var i = 0; i < tenants.length; i++) { ?>
+          <option value="<?= tenants[i] ?>"><?= tenants[i] ?></option>
+        <? } ?>
+      </select>
+    </div>
+    <div class="field">
+      <label>Topic <span class="req">*</span></label>
+      <select id="topic">
+        <option value="">— Select —</option>
+        <? for (var i = 0; i < topics.length; i++) { ?>
+          <option value="<?= topics[i] ?>"><?= topics[i] ?></option>
+        <? } ?>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Status</label>
+      <select id="status_">
+        <option value="">— Select —</option>
+        <? for (var i = 0; i < statuses.length; i++) { ?>
+          <option value="<?= statuses[i] ?>"><?= statuses[i] ?></option>
+        <? } ?>
+      </select>
+    </div>
+    <div class="field">
+      <label>Priority Level</label>
+      <select id="priority">
+        <option value="">— Select —</option>
+        <? for (var i = 0; i < priorities.length; i++) { ?>
+          <option value="<?= priorities[i] ?>"><?= priorities[i] ?></option>
+        <? } ?>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Customer Owner</label>
+      <input type="text" id="customerOwner">
+    </div>
+    <div class="field">
+      <label>ST Owner</label>
+      <input type="text" id="stOwner">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Action Item Description <span class="req">*</span></label>
+    <textarea id="actionItem"></textarea>
+  </div>
+
+  <div class="field">
+    <label>Notes / Next Steps</label>
+    <textarea id="notes"></textarea>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Due Date</label>
+      <input type="date" id="dueDate">
+    </div>
+    <div class="field">
+      <label>Support Case #</label>
+      <input type="text" id="supportCase">
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="hint">Row ID &amp; Date Added fill in automatically.<br>Added by: <?= email || 'you' ?></div>
+    <div class="actions">
+      <button id="cancelBtn" type="button" onclick="google.script.host.close()">Cancel</button>
+      <button id="submitBtn" type="button" onclick="submitForm()">Add Item</button>
+    </div>
+  </div>
+
+  <script>
+    function showStatus(message, isError) {
+      var el = document.getElementById('status');
+      el.textContent = message;
+      el.className = isError ? 'error' : 'success';
+    }
+
+    function submitForm() {
+      var form = {
+        tenant:        document.getElementById('tenant').value,
+        topic:         document.getElementById('topic').value,
+        status:        document.getElementById('status_').value,
+        priority:      document.getElementById('priority').value,
+        customerOwner: document.getElementById('customerOwner').value,
+        stOwner:       document.getElementById('stOwner').value,
+        actionItem:    document.getElementById('actionItem').value,
+        notes:         document.getElementById('notes').value,
+        dueDate:       document.getElementById('dueDate').value,
+        supportCase:   document.getElementById('supportCase').value
+      };
+
+      if (!form.tenant || !form.topic || !form.actionItem.trim()) {
+        showStatus('Tenant, Topic, and Action Item Description are required.', true);
+        return;
+      }
+
+      var submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Adding…';
+      showStatus('', false);
+      document.getElementById('status').style.display = 'none';
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (result && result.success) {
+            showStatus('✅ Added as ' + result.rowId + '.', false);
+            setTimeout(function () { google.script.host.close(); }, 900);
+          } else {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Add Item';
+            showStatus('❌ ' + (result && result.error ? result.error : 'Something went wrong.'), true);
+          }
+        })
+        .withFailureHandler(function (err) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Add Item';
+          showStatus('❌ ' + (err && err.message ? err.message : err), true);
+        })
+        .submitNewIssue(form);
+    }
+  </script>
+</body>
+</html>
