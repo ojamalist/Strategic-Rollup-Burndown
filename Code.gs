@@ -25,7 +25,8 @@ const DATA_HEADERS = [
 // Default statuses — used to seed the Statuses config sheet on first run
 // AND whenever the sheet is found empty (e.g. on existing spreadsheets after upgrade).
 const DEFAULT_STATUSES = [
-  'Open', 'In Progress', 'Fixed', 'Closed', 'On Hold', 'Ticket Created'
+  'Open', 'In Progress', 'Fixed', 'Closed', 'On Hold', 'Ticket Created',
+  'Waiting on Product', 'Pending Product Submission', 'Waiting on Client'
 ];
 
 // Priority levels — shared between the BurndownData dropdown and the Add Item dialog.
@@ -47,6 +48,8 @@ function onOpen() {
     .addItem('🚀 Set Up Dashboard (run first)',   'onboardClient')
     .addSeparator()
     .addItem('📝 Add Burndown Item',               'showAddIssueDialog')
+    .addSeparator()
+    .addItem('🔎 My Filter View (active tab)',    'createMyFilterView')
     .addSeparator()
     .addItem('➕ Add Tenant',                     'addTenantFromMenu')
     .addItem('➕ Add Topic',                      'addTopicFromMenu')
@@ -329,14 +332,17 @@ function applyConditionalFormatting_() {
 
   const ROWS = 2000;
 
-  // ── Status (col G = 7) — curated colors for the 6 built-ins; CHIP_PALETTE for customs ──
+  // ── Status (col G = 7) — curated colors for the 9 built-ins; CHIP_PALETTE for customs ──
   const STATUS_FIXED_COLORS = {
-    'Open':           { bg: '#fef9c3', fg: '#713f12' },
-    'In Progress':    { bg: '#dbeafe', fg: '#1e3a8a' },
-    'Fixed':          { bg: '#dcfce7', fg: '#14532d' },
-    'Closed':         { bg: '#f1f5f9', fg: '#475569' },
-    'On Hold':        { bg: '#fce7f3', fg: '#831843' },
-    'Ticket Created': { bg: '#ede9fe', fg: '#4c1d95' },
+    'Open':                       { bg: '#fef9c3', fg: '#713f12' },
+    'In Progress':                { bg: '#dbeafe', fg: '#1e3a8a' },
+    'Fixed':                      { bg: '#dcfce7', fg: '#14532d' },
+    'Closed':                     { bg: '#f1f5f9', fg: '#475569' },
+    'On Hold':                    { bg: '#fce7f3', fg: '#831843' },
+    'Ticket Created':             { bg: '#ede9fe', fg: '#4c1d95' },
+    'Waiting on Product':         { bg: '#fed7aa', fg: '#7c2d12' },
+    'Pending Product Submission': { bg: '#ccfbf1', fg: '#134e4a' },
+    'Waiting on Client':          { bg: '#fecaca', fg: '#7f1d1d' },
   };
   // getListSheet_ with DEFAULT_STATUSES seeds the sheet if it was created empty
   const allStatuses  = getListSheet_('Statuses', DEFAULT_STATUSES);
@@ -465,6 +471,83 @@ function deleteTenantSheet_(tenantName) {
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(tenantName);
   if (sheet) ss.deleteSheet(sheet);
+}
+
+// ─── Personal Filter Views ────────────────────────────────────────────────────
+//
+// The toolbar's "Create a filter" (funnel icon) creates ONE filter shared by
+// everyone who opens the sheet — when one person filters, everyone's view
+// changes, and because tenant tabs are protected, Sheets also warns that
+// filtering is "changing data in a filtered sheet."
+//
+// Filter VIEWS are personal: each person can create their own, named after
+// themselves, and apply sort/filter criteria inside it without touching what
+// anyone else sees or triggering that warning. This creates/refreshes one for
+// the current user on whichever tab is active (BurndownData or a tenant tab).
+//
+// Requires the "Google Sheets API" advanced service: in the Apps Script
+// editor, click Services (+) and add "Google Sheets API".
+
+function createMyFilterView() {
+  const ui    = SpreadsheetApp.getUi();
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const name  = sheet.getName();
+
+  if (name === 'Summary' || name === 'Dashboard' ||
+      ['Tenants', 'Topics', 'Statuses'].includes(name)) {
+    ui.alert('This tab doesn\'t hold filterable issue rows.\nSwitch to BurndownData or a tenant tab first.');
+    return;
+  }
+
+  let email = '';
+  try { email = Session.getActiveUser().getEmail() || ''; } catch (_) {}
+  const title = 'My Filter — ' + (email || 'Untitled');
+
+  // Header is row 1 on BurndownData; tenant tabs have a title bar on row 1
+  // and the real column headers on row 2.
+  const headerRow = (name === DATA_SHEET_NAME) ? 1 : 2;
+  const numCols   = DATA_HEADERS.length;
+  const numRows   = Math.max(sheet.getLastRow(), 2000) - headerRow + 1;
+
+  const filterRange = {
+    sheetId: sheet.getSheetId(),
+    startRowIndex: headerRow - 1,
+    endRowIndex: headerRow - 1 + numRows,
+    startColumnIndex: 0,
+    endColumnIndex: numCols,
+  };
+
+  try {
+    const meta = Sheets.Spreadsheets.get(ss.getId(), {
+      fields: 'sheets(properties.sheetId,filterViews(filterViewId,title))'
+    });
+    const sheetMeta = meta.sheets.find(s => s.properties.sheetId === sheet.getSheetId());
+    const existing  = sheetMeta && (sheetMeta.filterViews || []).find(fv => fv.title === title);
+
+    const requests = [];
+    if (existing) requests.push({ deleteFilterView: { filterId: existing.filterViewId } });
+    requests.push({ addFilterView: { filter: { title: title, range: filterRange } } });
+
+    Sheets.Spreadsheets.batchUpdate({ requests: requests }, ss.getId());
+
+    ui.alert(
+      '🔎 Personal filter view ready',
+      'Open it any time via Data → Filter views → "' + title + '".\n\n' +
+      'Filters and sorts you apply inside that view are visible only to you — ' +
+      'nobody else\'s view of this tab changes, and you won\'t see the ' +
+      '"editing filtered data" warning.',
+      ui.ButtonSet.OK
+    );
+  } catch (err) {
+    ui.alert(
+      '❌ Could not create filter view',
+      'Error: ' + err.message + '\n\n' +
+      'This feature needs the Google Sheets API advanced service enabled:\n' +
+      'Apps Script editor → Services (+) → add "Google Sheets API".',
+      ui.ButtonSet.OK
+    );
+  }
 }
 
 // ─── Visual Dashboard (charts) ────────────────────────────────────────────────
@@ -1207,7 +1290,11 @@ function helpTenantTabs() {
     '• Safe to share with a client team — they only see their own issues\n\n' +
     'The tab is created automatically when you add a tenant via ➕ Add Tenant.\n\n' +
     'The filtered view uses a cell reference (not a hardcoded name) in its formula,\n' +
-    'so tenant names with special characters like & always work correctly.',
+    'so tenant names with special characters like & always work correctly.\n\n' +
+    'Want to sort or filter within a tab yourself? Don\'t use the toolbar\'s\n' +
+    '"Create a filter" — it\'s shared, so it changes the view for everyone else too\n' +
+    'and warns about editing filtered data on a protected sheet.\n' +
+    'Use 🔎 My Filter View (active tab) instead — it\'s personal to you only.',
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }
@@ -1228,7 +1315,13 @@ function helpTroubleshoot() {
     '  Tenant tabs are read-only filtered views.\n\n' +
     'Formula errors on a tenant name with & (e.g. C&C)?\n' +
     '→ Run 🔄 Rebuild Summary Formulas. The script uses cell references\n' +
-    '  so special characters are always handled safely.',
+    '  so special characters are always handled safely.\n\n' +
+    'Filtering a tab changes it for everyone else, or warns about editing\n' +
+    'filtered/protected data?\n' +
+    '→ You\'re using the shared toolbar filter. Use 🔥 Burndown → 🔎 My Filter\n' +
+    '  View (active tab) instead — it\'s personal and won\'t trigger that warning.\n' +
+    '  (First use requires enabling the "Google Sheets API" advanced service:\n' +
+    '  Apps Script editor → Services (+) → Google Sheets API.)',
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }
