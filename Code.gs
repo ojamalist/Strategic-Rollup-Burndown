@@ -25,7 +25,8 @@ const DATA_HEADERS = [
 // Default statuses — used to seed the Statuses config sheet on first run
 // AND whenever the sheet is found empty (e.g. on existing spreadsheets after upgrade).
 const DEFAULT_STATUSES = [
-  'Open', 'In Progress', 'Fixed', 'Closed', 'On Hold', 'Ticket Created'
+  'Open', 'In Progress', 'Fixed', 'Closed', 'On Hold', 'Ticket Created',
+  'Waiting on Product', 'Pending Product Submission', 'Waiting on Client'
 ];
 
 // Priority levels — shared between the BurndownData dropdown and the Add Item dialog.
@@ -329,14 +330,17 @@ function applyConditionalFormatting_() {
 
   const ROWS = 2000;
 
-  // ── Status (col G = 7) — curated colors for the 6 built-ins; CHIP_PALETTE for customs ──
+  // ── Status (col G = 7) — curated colors for the 9 built-ins; CHIP_PALETTE for customs ──
   const STATUS_FIXED_COLORS = {
-    'Open':           { bg: '#fef9c3', fg: '#713f12' },
-    'In Progress':    { bg: '#dbeafe', fg: '#1e3a8a' },
-    'Fixed':          { bg: '#dcfce7', fg: '#14532d' },
-    'Closed':         { bg: '#f1f5f9', fg: '#475569' },
-    'On Hold':        { bg: '#fce7f3', fg: '#831843' },
-    'Ticket Created': { bg: '#ede9fe', fg: '#4c1d95' },
+    'Open':                       { bg: '#fef9c3', fg: '#713f12' },
+    'In Progress':                { bg: '#dbeafe', fg: '#1e3a8a' },
+    'Fixed':                      { bg: '#dcfce7', fg: '#14532d' },
+    'Closed':                     { bg: '#f1f5f9', fg: '#475569' },
+    'On Hold':                    { bg: '#fce7f3', fg: '#831843' },
+    'Ticket Created':             { bg: '#ede9fe', fg: '#4c1d95' },
+    'Waiting on Product':         { bg: '#fed7aa', fg: '#7c2d12' },
+    'Pending Product Submission': { bg: '#ccfbf1', fg: '#134e4a' },
+    'Waiting on Client':          { bg: '#fecaca', fg: '#7f1d1d' },
   };
   // getListSheet_ with DEFAULT_STATUSES seeds the sheet if it was created empty
   const allStatuses  = getListSheet_('Statuses', DEFAULT_STATUSES);
