@@ -1,0 +1,47 @@
+# Tests every push. On main, pushes the listed files to the Apps Script project in the SCRIPT_ID secret.
+# Without CLASPRC_JSON or SCRIPT_ID it tests and skips the deploy.
+# Convention: see docs/apps-script-deploy.md in the repo-management repo.
+name: Deploy to Apps Script
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: apps-script-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Unit tests
+        run: echo "No unit tests in this repo"
+      - name: Deploy
+        if: github.ref == 'refs/heads/main'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          FILES: Code.gs AddIssueDialog.html
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ]; then
+            echo "::notice::CLASPRC_JSON or SCRIPT_ID is not set. Tests passed; skipping the deploy."
+            exit 0
+          fi
+          CLASP="npx -y @google/clasp@3.4.1"
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK" "$HOME/.clasprc.json"' EXIT
+          (umask 077; printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json")
+          APP="$WORK/app"; mkdir -p "$APP"
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > "$APP/.clasp.json"
+          if [ -f appsscript.json ]; then cp appsscript.json "$APP/"; else (cd "$APP" && $CLASP pull); fi
+          cp $FILES "$APP/"
+          (cd "$APP" && $CLASP push --force)
